@@ -20,7 +20,10 @@ public class AutoMapperProfile : Profile
         CreateMap<CreatePetDTO, Pet>().ReverseMap();
         CreateMap<UpdatePetDTO, Pet>().ReverseMap();
         
-        CreateMap<Appointment, AppointmentDTO>().ReverseMap();
+        CreateMap<Appointment, AppointmentDTO>()
+            .ForMember(dest => dest.CustomerName, opt => opt.MapFrom(src => src.Pet.Customer.Name))
+            .ForMember(dest => dest.Services, opt => opt.MapFrom(src => src.AppointmentServices.Select(a => a.Service)))
+            .ReverseMap();
         CreateMap<CreateAppointmentDTO, Appointment>().ReverseMap();
         CreateMap<UpdateAppointmentDTO, Appointment>().ReverseMap();
         
