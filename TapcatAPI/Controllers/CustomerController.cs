@@ -80,6 +80,7 @@ public class CustomerController : ControllerBase
         if (updateDto.Email != null) customer.Email = updateDto.Email;
         if (updateDto.Phone != null) customer.Phone = updateDto.Phone;
         if (updateDto.Address != null) customer.Address = updateDto.Address;
+        if (updateDto.Password != null) customer.Password = updateDto.Password; // Needs some hashing due security issue
 
         await _context.SaveChangesAsync();
         return NoContent();
