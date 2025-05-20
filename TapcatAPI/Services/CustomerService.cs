@@ -29,7 +29,7 @@ public class CustomerService
         {
             Name = dto.Name,
             Email = dto.Email,
-            Password = BCrypt.Net.BCrypt.HashPassword(dto.Password), // Senha criptografada
+            Password = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Phone = dto.Phone,
             Address = dto.Address
         };
