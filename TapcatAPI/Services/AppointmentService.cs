@@ -10,9 +10,9 @@ public class AppointmentAppService : IAppointmentService
 {
     private readonly AppDbContext _context;
     private readonly IMapper _mapper;
-    private readonly ILogger<AppointmentService> _logger;
+    private readonly ILogger<AppointmentAppService> _logger;
 
-    public AppointmentAppService(AppDbContext context, IMapper mapper, ILogger<AppointmentService> logger)
+    public AppointmentAppService(AppDbContext context, IMapper mapper, ILogger<AppointmentAppService> logger)
     {
         _context = context;
         _mapper = mapper;
@@ -47,14 +47,25 @@ public class AppointmentAppService : IAppointmentService
 
     public async Task<AppointmentDTO> Create(CreateAppointmentDTO dto)
     {
-        if (!await _context.Pets.AnyAsync(p => p.Id == dto.PetId))
-            throw new ArgumentException("Pet não encontrado.");
+        var pet = await _context.Pets
+            .Include(p => p.Customer)
+            .FirstOrDefaultAsync(p => p.Id == dto.PetId)
+            ?? throw new ArgumentException("Pet não encontrado.");
 
         if (dto.ServiceIds == null || dto.ServiceIds.Count == 0)
             throw new ArgumentException("Selecione pelo menos um serviço.");
 
         var appointment = _mapper.Map<Appointment>(dto);
-        appointment.TotalPrice = await CalculateTotalPrice(dto.ServiceIds, dto.IsHomePickup);
+        appointment.IsPaidInCash = dto.IsPaidInCash;
+        appointment.TotalPrice = await CalculateTotalPrice(
+            dto.ServiceIds,
+            dto.IsHomePickup,
+            dto.IsPaidInCash,
+            pet.Id,
+            pet.Species.ToLower(),
+            pet.Weight,
+            pet.Customer.Id
+        );
 
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -95,6 +106,8 @@ public class AppointmentAppService : IAppointmentService
     {
         var appointment = await _context.Appointments
             .Include(a => a.AppointmentServices)
+            .Include(a => a.Pet)
+                .ThenInclude(p => p.Customer)
             .FirstOrDefaultAsync(a => a.Id == id);
 
         if (appointment == null)
@@ -119,7 +132,15 @@ public class AppointmentAppService : IAppointmentService
                     });
                 }
 
-                appointment.TotalPrice = await CalculateTotalPrice(dto.ServiceIds, dto.IsHomePickup ?? appointment.IsHomePickup);
+                appointment.TotalPrice = await CalculateTotalPrice(
+                    dto.ServiceIds,
+                    dto.IsHomePickup ?? appointment.IsHomePickup,
+                    dto.IsPaidInCash ?? appointment.IsPaidInCash,
+                    appointment.Pet.Id,
+                    appointment.Pet.Species.ToLower(),
+                    appointment.Pet.Weight,
+                    appointment.Pet.Customer.Id
+                );
             }
 
             await _context.SaveChangesAsync();
@@ -143,15 +164,61 @@ public class AppointmentAppService : IAppointmentService
         await _context.SaveChangesAsync();
     }
 
-    private async Task<decimal> CalculateTotalPrice(List<int> serviceIds, bool isHomePickup)
+    private async Task<decimal> CalculateTotalPrice(
+        List<int> serviceIds,
+        bool isHomePickup,
+        bool isPaidInCash,
+        int petId,
+        string petType,
+        float petWeight,
+        int customerId)
     {
         var services = await _context.Services
             .Where(s => serviceIds.Contains(s.Id))
             .ToListAsync();
 
-        decimal total = services.Sum(s => s.Price);
+        decimal total = 0;
+
+        foreach (var service in services)
+        {
+            var name = service.Name.ToLower();
+
+            if (name.Contains("banho"))
+            {
+                if (petType == "gato") total += 15;
+                else total += petWeight <= 10 ? 30 : 50;
+            }
+            else if (name.Contains("tosa"))
+            {
+                if (petType == "gato") total += 25;
+                else total += petWeight <= 10 ? 75 : 95;
+            }
+            else
+            {
+                total += service.Price;
+            }
+        }
+        
+        var totalVisits = await _context.Appointments
+            .Include(a => a.Pet)
+            .ThenInclude(p => p.Customer)
+            .CountAsync(a => a.Pet.Customer.Id == customerId);
+
+        if ((totalVisits + 1) % 10 == 0)
+        {
+            var banho = services.FirstOrDefault(s => s.Name.ToLower().Contains("banho"));
+            if (banho != null)
+            {
+                if (petType == "gato") total -= 15;
+                else total -= petWeight <= 10 ? 30 : 50;
+            }
+        }
+
         if (isHomePickup)
             total += 10;
+
+        if (isPaidInCash)
+            total *= 0.95m;
 
         return total;
     }

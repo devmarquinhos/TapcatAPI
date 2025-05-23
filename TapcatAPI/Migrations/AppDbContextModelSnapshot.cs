@@ -36,6 +36,9 @@ namespace TapcatAPI.Migrations
                     b.Property<bool>("IsHomePickup")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPaidInCash")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("PetId")
                         .HasColumnType("integer");
 
@@ -119,8 +122,8 @@ namespace TapcatAPI.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<double>("Weight")
-                        .HasColumnType("double precision");
+                    b.Property<float>("Weight")
+                        .HasColumnType("real");
 
                     b.HasKey("Id");
 

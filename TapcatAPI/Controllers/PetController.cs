@@ -88,7 +88,7 @@ public class PetController : ControllerBase
         if (pet == null) return NotFound();
         
         if (updateDto.Name != null) pet.Name = updateDto.Name;
-        if (updateDto.Weight.HasValue) pet.Weight = updateDto.Weight.Value;
+        if (updateDto.Weight.HasValue) pet.Weight = (float)updateDto.Weight.Value;
         if (updateDto.Species != null) pet.Species = updateDto.Species;
         if (updateDto.CustomerId.HasValue) 
         {
