@@ -173,45 +173,12 @@ public class AppointmentAppService : IAppointmentService
         float petWeight,
         int customerId)
     {
-        var services = await _context.Services
-            .Where(s => serviceIds.Contains(s.Id))
-            .ToListAsync();
+        var services = await GetServicesAsync(serviceIds);
+        decimal total = CalculateBasePrice(services, petType, petWeight);
 
-        decimal total = 0;
-
-        foreach (var service in services)
+        if (await ShouldApplyFreeBath(customerId))
         {
-            var name = service.Name.ToLower();
-
-            if (name.Contains("banho"))
-            {
-                if (petType == "gato") total += 15;
-                else total += petWeight <= 10 ? 30 : 50;
-            }
-            else if (name.Contains("tosa"))
-            {
-                if (petType == "gato") total += 25;
-                else total += petWeight <= 10 ? 75 : 95;
-            }
-            else
-            {
-                total += service.Price;
-            }
-        }
-        
-        var totalVisits = await _context.Appointments
-            .Include(a => a.Pet)
-            .ThenInclude(p => p.Customer)
-            .CountAsync(a => a.Pet.Customer.Id == customerId);
-
-        if ((totalVisits + 1) % 10 == 0)
-        {
-            var banho = services.FirstOrDefault(s => s.Name.ToLower().Contains("banho"));
-            if (banho != null)
-            {
-                if (petType == "gato") total -= 15;
-                else total -= petWeight <= 10 ? 30 : 50;
-            }
+            total -= GetBathPrice(services, petType, petWeight);
         }
 
         if (isHomePickup)
@@ -221,5 +188,55 @@ public class AppointmentAppService : IAppointmentService
             total *= 0.95m;
 
         return total;
+    }
+
+    private async Task<List<Service>> GetServicesAsync(List<int> serviceIds)
+    {
+        return await _context.Services
+            .Where(s => serviceIds.Contains(s.Id))
+            .ToListAsync();
+    }
+
+    private decimal CalculateBasePrice(List<Service> services, string petType, float petWeight)
+    {
+        decimal total = 0;
+
+        foreach (var service in services)
+        {
+            var name = service.Name.ToLower();
+
+            if (name.Contains("banho"))
+            {
+                total += petType == "gato" ? 15 : (petWeight <= 10 ? 30 : 50);
+            }
+            else if (name.Contains("tosa"))
+            {
+                total += petType == "gato" ? 25 : (petWeight <= 10 ? 75 : 95);
+            }
+            else
+            {
+                total += service.Price;
+            }
+        }
+
+        return total;
+    }
+
+    private async Task<bool> ShouldApplyFreeBath(int customerId)
+    {
+        int totalVisits = await _context.Appointments
+            .Include(a => a.Pet)
+            .ThenInclude(p => p.Customer)
+            .CountAsync(a => a.Pet.Customer.Id == customerId);
+
+        return (totalVisits + 1) % 10 == 0;
+    }
+
+    private decimal GetBathPrice(List<Service> services, string petType, float petWeight)
+    {
+        var hasBath = services.Any(s => s.Name.ToLower().Contains("banho"));
+        if (!hasBath) return 0;
+
+        return petType == "gato" ? 15 : (petWeight <= 10 ? 30 : 50);
     }
 }
