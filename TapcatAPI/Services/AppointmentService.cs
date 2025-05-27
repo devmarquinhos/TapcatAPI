@@ -61,7 +61,6 @@ public class AppointmentAppService : IAppointmentService
             dto.ServiceIds,
             dto.IsHomePickup,
             dto.IsPaidInCash,
-            pet.Id,
             pet.Species.ToLower(),
             pet.Weight,
             pet.Customer.Id
@@ -136,7 +135,6 @@ public class AppointmentAppService : IAppointmentService
                     dto.ServiceIds,
                     dto.IsHomePickup ?? appointment.IsHomePickup,
                     dto.IsPaidInCash ?? appointment.IsPaidInCash,
-                    appointment.Pet.Id,
                     appointment.Pet.Species.ToLower(),
                     appointment.Pet.Weight,
                     appointment.Pet.Customer.Id
@@ -168,7 +166,6 @@ public class AppointmentAppService : IAppointmentService
         List<int> serviceIds,
         bool isHomePickup,
         bool isPaidInCash,
-        int petId,
         string petType,
         float petWeight,
         int customerId)
@@ -176,7 +173,7 @@ public class AppointmentAppService : IAppointmentService
         var services = await GetServicesAsync(serviceIds);
         decimal total = CalculateBasePrice(services, petType, petWeight);
 
-        if (await ShouldApplyFreeBath(customerId))
+        if (await FreeVisit(customerId))
         {
             total -= GetBathPrice(services, petType, petWeight);
         }
@@ -222,7 +219,7 @@ public class AppointmentAppService : IAppointmentService
         return total;
     }
 
-    private async Task<bool> ShouldApplyFreeBath(int customerId)
+    private async Task<bool> FreeVisit(int customerId)
     {
         int totalVisits = await _context.Appointments
             .Include(a => a.Pet)
